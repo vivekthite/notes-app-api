@@ -1,0 +1,133 @@
+# NOTE: update this with your service name
+service: notes-app-api
+
+# Use the serverless-webpack plugin to transpile ES6
+plugins:
+  - serverless-webpack
+  - serverless-offline
+
+# serverless-webpack configuration
+# Enable auto-packing of external modules
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  #our stage is what we have passed in while running serverless command or
+  #falls back to provider stage
+  stage: ${opt:stage, self:provider.stage}
+  #table throughput for prod and all other non prod stages
+  tableThroughputs:
+    prod: 5
+    default: 1
+  tableThroughput: ${self:custom.tableThroughputs.${self:custom.stage}, self:custom.tableThroughputs.default}    
+  # Load our secret env variables based on current stage.
+  # Fallback to default if it is not in prod
+  environment: ${file(env.yml):${self:custom.stage} , file(env.yml):default}
+
+provider:
+  name: aws
+  runtime: nodejs8.10
+  stage: ${opt:stage, 'dev'}
+  region: us-east-1
+  # 'iamRoleStatements' defines the permission policy for the lambda function
+  # In this case lambda function is granted with permissions to access DynamoDB.
+  iamRoleStatements: 
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:DescribeTable
+        - dynamodb:DeleteItem
+        - dynamodb:GetItem
+        - dynamodb:Scan
+        - dynamodb:Query
+        - dynamodb:UpdateItem
+      Resource: 
+        - "Fn::GetAtt": [ NotesTable, Arn ]    
+  
+  # These env variables are made available to our functions
+  # under process.env
+  environment: 
+    tableName:
+      Ref: NotesTable
+    stripeSecretKey : ${self:custom.environment.stripeSecretKey}  
+  
+functions:  
+  create:
+    # Defines an HTTP API endpoint that calls the main function in create.js
+    #  - path : url path is /notes
+    #  - method: post request
+    #  - cors: enabled CORS for browser cross domain API call
+    #  - authorizer : authenticate using AWS IAM role 
+    handler: create.main
+    events:
+      - http:
+          path: notes
+          method: post
+          cors: true
+          authorizer: aws_iam
+  get:
+    # Defines an HTTP API endpoint that calls the main function in get.js
+    # - path : url path is /notes/{id}
+    # - method : GET request
+    handler: get.main
+    events:
+      - http:
+          path: notes/{id}
+          method: get
+          cors: true
+          authorizer: aws_iam
+  list:
+    # Defines an HTTP API endpoint that calls the main function in list.js
+    # - path : url path is /notes
+    # - method : GET request
+    handler: list.main
+    events:
+      - http:
+          path: notes
+          method: get
+          cors: true
+          authorizer: aws_iam        
+  update:
+    # Defines an HTTP API endpoint that calls the main function in update.js
+    # - path : url path is /notes/{id}
+    # - method : GET request
+    handler: update.main
+    events:
+      - http:
+          path: notes/{id}
+          method: put
+          cors: true
+          authorizer: aws_iam
+  delete:
+    # Defines an HTTP API endpoint that calls the main function in delete.js
+    # - path : url path is /notes/{id}
+    # - method : DELETE request
+    handler: delete.main
+    events:
+      - http:
+          path: notes/{id}
+          method: delete
+          cors: true
+          authorizer: aws_iam 
+  
+  #billing api
+  billing:
+    handler: billing.main
+    events:
+      - http:
+          path: billing
+          method: post
+          cors: true
+          authorizer: aws_iam  
+          
+
+resources:
+  #DynamoDb
+  - ${file(resources/dynamodb-table.yml)}
+  #s3
+  - ${file(resources/s3-bucket.yml)}
+  #cognito user pool
+  - ${file(resources/cognito-user-pool.yml)}
+  #cognito identity pool
+  - ${file(resources/cognito-identity-pool.yml)}
+               
