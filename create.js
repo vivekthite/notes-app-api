@@ -2,7 +2,7 @@ import uuid from "uuid";
 import * as dynamoDbLib from "./libs/dynamo-lib";
 import {success,failure} from "./libs/response-lib";
 
-
+gibberish.what;
 
 export async function main(event,context,callback){
     // request body is passed in as JSON string in event body
